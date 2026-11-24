@@ -104,13 +104,6 @@ def limpiar_al_iniciar():
 limpiar_al_iniciar()
 
 
-@st.cache_resource
-def cargar_modelos(version):
-    """'version' es la fecha de modificación del archivo: si se reentrena o se sube un
-    modelo nuevo, cambia y Streamlit vuelve a cargarlo en lugar de usar el de la memoria."""
-    return joblib.load(MODELO_FINAL) if MODELO_FINAL.exists() else None
-
-
 @st.cache_data(show_spinner=False)
 def analizar(datos):
     """Extrae características (incluye color con k-means) de una foto subida."""
@@ -128,7 +121,6 @@ def crear_miniatura(datos, lado_max=320):
     return buf.getvalue()
 
 
-M = cargar_modelos(MODELO_FINAL.stat().st_mtime if MODELO_FINAL.exists() else 0)
 
 
 def predecir(f):
