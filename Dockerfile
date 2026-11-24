@@ -1,34 +1,36 @@
-# Usamos una imagen base de Python ligera
+# Usamos una imagen base de Python ligera pero compatible
 FROM python:3.11-slim
 
-# Establecemos el directorio de trabajo dentro del contenedor
+# Establecemos el directorio de trabajo
 WORKDIR /app
 
-# Instalamos dependencias del sistema necesarias para algunas librerías
+# 1. Instalar dependencias del sistema necesarias para compilar paquetes de datos/ML
+# (gcc, g++ para C++, libjpeg y zlib para Pillow/imágenes)
 RUN apt-get update && apt-get install -y \
     build-essential \
+    gcc \
+    g++ \
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiamos primero el archivo de dependencias (para aprovechar el caché de Docker)
+# 2. Actualizar pip (como sugiere el propio error de Cloud Build)
+RUN pip install --upgrade pip
+
+# 3. Copiar solo el archivo de dependencias primero (para aprovechar la caché de Docker)
 COPY requirements.txt .
 
-# Instalamos las dependencias de Python
+# 4. Instalar las dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiamos el resto del código de la aplicación
+# 5. Copiar el resto del código de la aplicación
 COPY . .
 
-# Streamlit usa el puerto 8080 por defecto en Cloud Run
+# 6. Configurar variables de entorno para Streamlit en Cloud Run
 ENV PORT=8080
-
-# Exponemos el puerto
 EXPOSE 8080
 
-# Comando para ejecutar la aplicación
-# --server.port: puerto que usa Cloud Run
-# --server.address: 0.0.0.0 para aceptar conexiones externas
-# --server.headless: true para que no abra navegador
-# --server.enableCORS: false porque Cloud Run maneja esto
+# 7. Comando de inicio
 CMD streamlit run app.py \
     --server.port=$PORT \
     --server.address=0.0.0.0 \
