@@ -25,7 +25,6 @@ from PIL import Image, ImageOps
 from src.auth import cerrar_sesion, iniciar_sesion, registrar_usuario, sesion_actual
 from src.caracteristicas import extraer
 from src.color_kmeans import rgb_a_hex
-from src.closet import obtener_almacen
 from src.config import (CLASES, COLORES, DIAS_GUARDADO, ESTILO_CSS, MODELO_FINAL, NEUTROS, NOMBRE_CLASE,
                         NOMBRE_OCASION, OCASIONES, PATRONES, TONO_COLOR)
 from src.reglas import recomendar
@@ -82,7 +81,6 @@ st.set_page_config(page_title="Recomendador de outfits", page_icon="👕", layou
 if ESTILO_CSS.exists():
     st.markdown(f"<style>{ESTILO_CSS.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
-almacen = obtener_almacen()
 
 
 def limpiar_razon(texto):
@@ -90,15 +88,18 @@ def limpiar_razon(texto):
     limpio = re.sub(r"\s*\([^)]*\)\s*$", "", str(texto)).strip()
     return limpio or str(texto).strip()
 
-
 @st.cache_resource
 def limpiar_al_iniciar():
     """Al abrir la app, borra las prendas guardadas que ya vencieron."""
     try:
-        return almacen.limpiar_vencidas()
+        sesion = sesion_actual()
+        if sesion:
+            user_id = sesion.get("uid")
+            if user_id:
+                return gcp_storage.limpiar_vencidas_nube(user_id)
+        return 0
     except Exception:
         return 0
-
 
 limpiar_al_iniciar()
 
