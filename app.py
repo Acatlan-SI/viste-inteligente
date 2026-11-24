@@ -29,6 +29,7 @@ from src.closet import obtener_almacen
 from src.config import (CLASES, COLORES, DIAS_GUARDADO, ESTILO_CSS, MODELO_FINAL, NEUTROS, NOMBRE_CLASE,
                         NOMBRE_OCASION, OCASIONES, PATRONES, TONO_COLOR)
 from src.reglas import recomendar
+from src import gcp_storage
 
 MAX_FOTOS_RECOMENDADAS = 30
 
@@ -165,7 +166,7 @@ def color_para_reglas(f, nombre):
 
 # ---------------------------------------------------------------- sesión / Mi clóset
 sesion = sesion_actual()
-closet_user_key = sesion["closet_key"] if sesion else None
+user_id = sesion["uid"] if sesion else None
 
 with st.sidebar:
     st.markdown(
@@ -206,12 +207,11 @@ with st.sidebar:
 
 
 def prendas_guardadas():
-    if not closet_user_key:
+    if not user_id:
         return []
     try:
-        return almacen.listar(closet_user_key)
-    except ValueError:
-        return []
+        # Usamos la nueva función en la nube
+        return gcp_storage.obtener_prendas_nube(user_id)
     except Exception as exc:
         st.warning(f"No se pudo consultar Mi clóset en este momento: {exc}")
         return []
@@ -291,15 +291,22 @@ with tab_rec:
                             "mezclilla": mezclilla, "ocasiones": ocas, "color": color_para_reglas(f, color)})
 
     if prendas:
-        if not closet_user_key:
+        if not user_id:
             st.caption("Inicia sesión en el panel izquierdo para activar el guardado en Mi clóset.")
-        if st.button("Guardar estas prendas en mi clóset", disabled=not closet_user_key,
-                     help=None if closet_user_key else "Inicia sesión en la barra lateral"):
+        
+        if st.button("Guardar estas prendas en mi clóset", disabled=not user_id,
+                     help=None if user_id else "Inicia sesión en la barra lateral"):
             try:
                 for p in prendas:
-                    almacen.guardar(closet_user_key, p["nombre"], p["imagen"],
-                                    {k: p[k] for k in ("tipo", "patron", "mezclilla", "ocasiones", "color")})
-                st.success(f"Se guardaron {len(prendas)} prendas por {DIAS_GUARDADO} días.")
+                    # Aquí llamamos a tu nueva función en la nube
+                    gcp_storage.guardar_prenda_nube(
+                        user_id, 
+                        p["nombre"], 
+                        p["imagen"],
+                        {k: p[k] for k in ("tipo", "patron", "mezclilla", "ocasiones", "color")}
+                    )
+                st.success(f"Se guardaron {len(prendas)} prendas por {DIAS_GUARDADO} días en la nube.")
+                st.rerun() # Recargamos para actualizar la lista inmediatamente
             except Exception as exc:
                 st.error(f"No se pudieron guardar las prendas: {exc}")
 
@@ -489,11 +496,12 @@ with tab_rec:
 # 2. MI CLÓSET
 # ===========================================================================
 with tab_closet:
-    if not sesion or not closet_user_key:
+    if not sesion or not user_id:
         st.info("Inicia sesión en la barra lateral para ver o guardar tu clóset.")
     else:
         guardadas = prendas_guardadas()
         st.write(f"**{len(guardadas)}** {'prenda guardada' if len(guardadas) == 1 else 'prendas guardadas'} para **{sesion['email']}**.")
+        
         if not guardadas:
             st.info("Aún no tienes prendas guardadas. Ve a **Recomendador**, sube fotos y pulsa **Guardar estas prendas en mi clóset**.")
         else:
@@ -503,13 +511,14 @@ with tab_closet:
                     f"Las fotos se muestran en miniatura para mantener la página rápida.</div></div>",
                     unsafe_allow_html=True,
                 )
+            
             cols = st.columns(4)
             for i, g in enumerate(guardadas):
                 d = g["datos"]
                 with cols[i % 4]:
                     with st.container(border=True):
                         st.image(crear_miniatura(g["imagen"], lado_max=280), width=185)
-                        vence_texto = str(g.get("vence_en") or g.get("vence") or "")[:10]
+                        vence_texto = str(d.get("vence_en") or "")[:10]
                         st.markdown(
                             f"**{NOMBRE_CLASE[d['tipo']]}** · {d['color']['nombre']}  \n"
                             f"<span class='vence'>{SVG_ETIQUETA}<span>Se borra el {vence_texto}</span></span>",
@@ -517,7 +526,8 @@ with tab_closet:
                         )
                         if st.button("Quitar prenda", key=f"del_{g['id']}"):
                             try:
-                                almacen.borrar(closet_user_key, g["id"])
+                                # Usamos la función de borrado en la nube
+                                gcp_storage.borrar_prenda_nube(user_id, g["id"])
                                 st.rerun()
                             except Exception as exc:
                                 st.error(f"No se pudo quitar la prenda: {exc}")

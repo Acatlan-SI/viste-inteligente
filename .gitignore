@@ -9,3 +9,4 @@ datos/closets/
 # Claves de la nube (Supabase/Firebase): nunca se suben
 .streamlit/secrets.toml
 
+credentials.json
