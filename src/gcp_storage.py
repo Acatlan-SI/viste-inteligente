@@ -58,14 +58,29 @@ def obtener_prendas_nube(user_id: str):
             
             if vence_en > ahora:
                 dias_restantes = (vence_en - ahora).days
-                data["vence_en"] = data["vence_en"][:10] # Formato corto para la UI
+                data["vence_en"] = data["vence_en"][:10]  # Formato corto para la UI
                 data["dias_restantes"] = dias_restantes
                 
                 # Descargamos la imagen en memoria para que Streamlit la muestre
                 img_blob = bucket.blob(data["imagen_blob_name"])
-                data["imagen"] = img_blob.download_as_bytes()
+                imagen_bytes = img_blob.download_as_bytes()
                 
-                prendas.append({"id": blob.name.split("/")[-1].replace(".json", ""), "datos": data, "imagen": data["imagen"]})
+                # Extraemos el nombre original del archivo de la ruta
+                nombre_archivo = data["imagen_blob_name"].split("/")[-1]
+                # Quitamos el timestamp del principio (formato: 20250125_143022_nombre.jpg)
+                partes = nombre_archivo.split("_", 2)
+                if len(partes) >= 3:
+                    nombre_original = partes[2]
+                else:
+                    nombre_original = nombre_archivo
+                
+                # Devolvemos la estructura que espera app.py
+                prendas.append({
+                    "id": blob.name.split("/")[-1].replace(".json", ""),
+                    "nombre": nombre_original,
+                    "imagen": imagen_bytes,
+                    "datos": data
+                })
                 
     return prendas
 

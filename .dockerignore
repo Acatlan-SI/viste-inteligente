@@ -1,0 +1,34 @@
+# Entorno virtual (no debe subirse)
+.venv/
+venv/
+env/
+
+# Archivos de Python compilados
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Git
+.git/
+.gitignore
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Credenciales sensibles (NO incluir en la imagen)
+# Las subiremos como secretos en Cloud Run
+credentials.json
+
+# Archivos temporales
+*.log
+tmp/
+
+# Streamlit caché local
+.streamlit/secrets.toml

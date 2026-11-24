@@ -176,7 +176,8 @@ with st.sidebar:
     )
 
     if sesion:
-        st.success(f"Sesión activa: **{sesion['email']}**")
+        st.success(f"Hola, **{sesion.get('display_name', sesion['email'])}** 👋")
+        st.caption(f"Correo: {sesion['email']}")
         st.caption(f"Tus prendas guardadas se conservan {DIAS_GUARDADO} días y luego se borran solas.")
         if st.button("Cerrar sesión", key="btn_logout"):
             cerrar_sesion()
@@ -184,11 +185,12 @@ with st.sidebar:
     else:
         st.caption(f"Inicia sesión para guardar tus prendas {DIAS_GUARDADO} días en Mi clóset.")
         modo_auth = st.radio("Acceso", ["Iniciar sesión", "Crear cuenta"], horizontal=True, label_visibility="collapsed")
+        
         correo_input = st.text_input("Correo electrónico", placeholder="tu@correo.com", key="auth_email")
         clave_input = st.text_input("Contraseña", type="password", placeholder="••••••••", key="auth_password")
 
         if modo_auth == "Iniciar sesión":
-            if st.button("Iniciar sesión", type="primary", key="btn_login"):
+            if st.button("Iniciar sesión", type="primary", key="btn_login", use_container_width=True):
                 ok, msg = iniciar_sesion(correo_input, clave_input)
                 if ok:
                     st.success(msg)
@@ -196,12 +198,12 @@ with st.sidebar:
                 else:
                     st.error(msg)
         else:
-            if st.button("Crear cuenta", type="primary", key="btn_signup"):
-                ok, msg = registrar_usuario(correo_input, clave_input)
+            nombre_input = st.text_input("Nombre de usuario", placeholder="Ej: Nancy", key="auth_name")
+            if st.button("Crear cuenta", type="primary", key="btn_signup", use_container_width=True):
+                ok, msg = registrar_usuario(correo_input, clave_input, nombre_input)
                 if ok:
                     st.success(msg)
-                    if sesion_actual():
-                        st.rerun()
+                    st.rerun()
                 else:
                     st.error(msg)
 
