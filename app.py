@@ -8,7 +8,7 @@ separado `ML_SERVICE_URL`.
 Pestañas:
 1. Recomendador : el usuario sube fotos, el servicio ML las clasifica,
                    y después pide outfits filtrados por ocasión/color.
-2. Mi clóset    : prendas guardadas en la nube (expiran tras DIAS_GUARDADO días).
+2. Mi clóset    : prendas guardadas en la nube.
 """
 
 import io
@@ -21,7 +21,7 @@ from PIL import Image, ImageOps
 
 from src.auth import cerrar_sesion, iniciar_sesion, registrar_usuario, sesion_actual
 from src.config import (
-    CLASES, COLORES, DIAS_GUARDADO, ESTILO_CSS, NOMBRE_CLASE,
+    CLASES, COLORES, ESTILO_CSS, NOMBRE_CLASE,
     NOMBRE_OCASION, OCASIONES, PATRONES,
 )
 from src import gcp_storage
@@ -98,23 +98,6 @@ def limpiar_razon(texto):
     return limpio or str(texto).strip()
 
 
-@st.cache_resource
-def limpiar_al_iniciar():
-    """Al abrir la app, borra las prendas vencidas del usuario activo."""
-    try:
-        sesion = sesion_actual()
-        if sesion:
-            user_id = sesion.get("uid")
-            if user_id:
-                return gcp_storage.limpiar_vencidas_nube(user_id)
-        return 0
-    except Exception:
-        return 0
-
-
-limpiar_al_iniciar()
-
-
 @st.cache_data(show_spinner=False)
 def crear_miniatura(datos: bytes, lado_max: int = 320) -> bytes:
     """Miniatura JPEG ligera para mostrar en pantalla sin alentar la app."""
@@ -175,12 +158,12 @@ with st.sidebar:
 
     if sesion:
         st.success(f"Hola, **{sesion.get('display_name', sesion['email'])}** 👋")
-        st.caption(f"Tus prendas guardadas se conservan {DIAS_GUARDADO} días y luego se borran solas.")
+        st.caption("Tus prendas guardadas permanecen en tu clóset en la nube.")
         if st.button("Cerrar sesión", key="btn_logout"):
             cerrar_sesion()
             st.rerun()
     else:
-        st.caption(f"Inicia sesión para guardar tus prendas {DIAS_GUARDADO} días en Mi clóset.")
+        st.caption("Inicia sesión para guardar tus prendas en Mi clóset.")
         modo_auth = st.radio("Acceso", ["Iniciar sesión", "Crear cuenta"], horizontal=True, label_visibility="collapsed")
 
         correo_input = st.text_input("Correo electrónico", placeholder="tu@correo.com", key="auth_email")
@@ -225,7 +208,7 @@ st.markdown(
       <h1 class="hero-titulo">Tu armario ya tiene la respuesta</h1>
       <p class="hero-sub">
         Sube tus prendas, elige la ocasión y descubre combinaciones explicadas en segundos.
-        Sin registro obligatorio para probar, o con inicio de sesión y guardado por {DIAS_GUARDADO} días en Mi clóset.
+        Sin registro obligatorio para probar, o con inicio de sesión y guardado en Mi clóset.
       </p>
     </div>
     """,
@@ -338,7 +321,7 @@ with tab_rec:
                         p["imagen"],
                         {k: p[k] for k in ("tipo", "patron", "mezclilla", "ocasiones", "color")},
                     )
-                st.success(f"Se guardaron {len(prendas)} prendas por {DIAS_GUARDADO} días en la nube.")
+                st.success(f"Se guardaron {len(prendas)} prendas en la nube.")
                 st.rerun()
             except Exception as exc:
                 st.error(f"No se pudieron guardar las prendas: {exc}")
@@ -424,7 +407,7 @@ with tab_rec:
         (p1, "01", "Sube tus fotos", "Añade imágenes de las prendas que quieres combinar hoy."),
         (p2, "02", "Elige la ocasión", "Selecciona casual, trabajo, noche o formal según tu plan."),
         (p3, "03", "Decide cuántas", "Ajusta el número máximo de opciones que quieres revisar."),
-        (p4, "04", "Revisa y guarda", f"Mira calificación y motivos; con sesión guarda {DIAS_GUARDADO} días."),
+        (p4, "04", "Revisa y guarda", "Mira calificación y motivos; con sesión guarda en tu clóset."),
     ]
     for col, num, tit, desc in pasos_info:
         with col:
@@ -441,7 +424,7 @@ with tab_rec:
         ("¿Tengo que registrarme para usar el recomendador?",
          "No. Puedes subir tus fotos y generar combinaciones al momento sin iniciar sesión."),
         ("¿Qué pasa con mis prendas si inicio sesión?",
-         f"Se guardan en Mi clóset durante {DIAS_GUARDADO} días para reutilizarlas y luego se limpian automáticamente."),
+         "Se guardan en Mi clóset en la nube para reutilizarlas cuando quieras."),
         ("¿Por qué a veces me muestra menos outfits de los que pedí?",
          "El selector indica el máximo a mostrar; si con las prendas actuales y la ocasión elegida solo se forman menos combinaciones válidas, se muestran las disponibles."),
         ("¿Sirve para cualquier ocasión?",
@@ -477,10 +460,8 @@ with tab_closet:
                 with cols[i % 4]:
                     with st.container(border=True):
                         st.image(crear_miniatura(g["imagen"], lado_max=280), width=185)
-                        vence_texto = str(d.get("vence_en") or "")[:10]
                         st.markdown(
-                            f"**{NOMBRE_CLASE.get(d['tipo'], d['tipo'])}** · {d['color']['nombre']}  \n"
-                            f"<span class='vence'>{SVG_ETIQUETA}<span>Se borra el {vence_texto}</span></span>",
+                            f"**{NOMBRE_CLASE.get(d['tipo'], d['tipo'])}** · {d['color']['nombre']}",
                             unsafe_allow_html=True,
                         )
                         if st.button("Quitar prenda", key=f"del_{g['id']}"):
