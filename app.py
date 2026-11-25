@@ -112,34 +112,74 @@ def crear_miniatura(datos: bytes, lado_max: int = 320) -> bytes:
 def _ml_disponible() -> bool:
     return bool(ML_SERVICE_URL)
 
+def _get_auth_headers() -> dict:
+    """Obtiene headers con token de Firebase para autenticación."""
+    headers = {"Content-Type": "application/json"}
+    
+    if sesion and hasattr(sesion, 'id_token'):
+        # Firebase Auth en Streamlit
+        headers["Authorization"] = f"Bearer {sesion.id_token}"
+    elif sesion and 'id_token' in sesion:
+        # Si guardaste el token en la sesión
+        headers["Authorization"] = f"Bearer {sesion['id_token']}"
+    
+    return headers
+
 
 def clasificar_prenda(datos: bytes) -> dict | None:
-    """Llama al servicio ML /classify. Devuelve dict con tipo/color/ocasiones o None si falla."""
+    """Llama al servicio ML /classify con autenticación."""
     if not _ml_disponible():
         return None
+    
     try:
+        headers = {}
+        if sesion and hasattr(sesion, 'id_token'):
+            headers["Authorization"] = f"Bearer {sesion.id_token}"
+        elif sesion and 'id_token' in sesion:
+            headers["Authorization"] = f"Bearer {sesion['id_token']}"
+        
         resp = requests.post(
             f"{ML_SERVICE_URL}/classify",
             files={"file": ("imagen.jpg", datos, "image/jpeg")},
+            headers=headers,
             timeout=15,
         )
+        
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+        elif resp.status_code == 401:
+            st.warning("⚠️ Sesión expirada. Por favor, inicia sesión nuevamente.")
+        else:
+            st.error(f"Error al clasificar: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        st.error(f"Error de conexión: {str(e)}")
+    
     return None
 
 
 def pedir_recomendaciones(payload: dict) -> dict | None:
-    """Llama al servicio ML /recommend."""
+    """Llama al servicio ML /recommend con autenticación."""
     if not _ml_disponible():
         return None
+    
     try:
-        resp = requests.post(f"{ML_SERVICE_URL}/recommend", json=payload, timeout=30)
+        headers = _get_auth_headers()
+        resp = requests.post(
+            f"{ML_SERVICE_URL}/recommend",
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+        
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+        elif resp.status_code == 401:
+            st.warning("⚠️ Sesión expirada. Por favor, inicia sesión nuevamente.")
+        else:
+            st.error(f"Error al recomendar: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        st.error(f"Error de conexión: {str(e)}")
+    
     return None
 
 
@@ -340,16 +380,27 @@ with tab_rec:
         elif not user_id:
             st.warning("Inicia sesión para obtener recomendaciones.")
         else:
+            prendas_extra_metadata = []
+            for p in prendas:
+                prenda_meta = {
+                    "tipo": p["tipo"],
+                    "patron": p["patron"],
+                    "mezclilla": p["mezclilla"],
+                    "ocasiones": p["ocasiones"],
+                    "color": p["color"],  # Esto ya es un dict {"nombre": "rojo"}
+                    "nombre": p.get("nombre", "Prenda temporal"),
+                    "imagen_url": "",  # Vacío porque es una prenda subida temporalmente
+                }
+                prendas_extra_metadata.append(prenda_meta)
+            
             payload = {
                 "user_id": user_id,
                 "ocasion": ocasion,
                 "top": top,
                 "incluir_closet": bool(usar_closet),
-                "prendas_extra": [
-                    {k: p[k] for k in ("tipo", "patron", "mezclilla", "ocasiones", "color", "imagen")}
-                    for p in prendas
-                ],
+                "prendas_extra": prendas_extra_metadata,  # ✅ Solo metadata, sin bytes
             }
+            
             with st.spinner("Armando combinaciones..."):
                 respuesta = pedir_recomendaciones(payload)
 
