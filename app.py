@@ -436,16 +436,61 @@ with tab_rec:
                         cols = st.columns(len(r["piezas"]) + 1)
                         for c, p in zip(cols, r["piezas"]):
                             with c:
-                                # El ML service devuelve `imagen_url` firmada; si no, usa bytes.
+                                # ✅ Intentar mostrar imagen en este orden:
+                                # 1. URL firmada de Cloud Storage (prendas del clóset)
+                                # 2. Bytes de imagen en memoria (prendas temporales)
+                                imagen_mostrada = False
+                                
+                                # Opción 1: URL firmada
                                 if p.get("imagen_url"):
-                                    st.image(p["imagen_url"], width=175)
-                                elif p.get("imagen"):
-                                    st.image(crear_miniatura(p["imagen"], lado_max=280), width=175)
+                                    try:
+                                        st.image(p["imagen_url"], width=175)
+                                        imagen_mostrada = True
+                                    except Exception:
+                                        pass
+                                
+                                # Opción 2: Buscar en las prendas temporales por nombre
+                                if not imagen_mostrada:
+                                    nombre_pieza = p.get("nombre", "")
+                                    # Buscar en las prendas subidas temporalmente
+                                    for prenda_subida in prendas:
+                                        if prenda_subida["nombre"] == nombre_pieza:
+                                            try:
+                                                miniatura = crear_miniatura(prenda_subida["imagen"], lado_max=280)
+                                                st.image(miniatura, width=175)
+                                                imagen_mostrada = True
+                                            except Exception:
+                                                pass
+                                            break
+                                
+                                # Opción 3: Buscar en las prendas guardadas del clóset
+                                if not imagen_mostrada:
+                                    for prenda_guardada in guardadas:
+                                        if prenda_guardada.get("nombre") == nombre_pieza:
+                                            try:
+                                                miniatura = crear_miniatura(prenda_guardada["imagen"], lado_max=280)
+                                                st.image(miniatura, width=175)
+                                                imagen_mostrada = True
+                                            except Exception:
+                                                pass
+                                            break
+                                
+                                # Si no se encontró imagen, mostrar placeholder
+                                if not imagen_mostrada:
+                                    st.markdown(
+                                        "<div style='width:175px;height:175px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#999;font-size:14px;'>Sin imagen</div>",
+                                        unsafe_allow_html=True
+                                    )
+                                
+                                # Información de la pieza
+                                color_nombre = p['color']['nombre'] if isinstance(p.get('color'), dict) else str(p.get('color', 'Desconocido'))
                                 st.markdown(
                                     f"<div class='pieza-titulo'>{NOMBRE_CLASE.get(p['tipo'], p['tipo'])}</div>"
-                                    f"<div class='pieza-sub'>Color: {p['color']['nombre']}</div>",
+                                    f"<div class='pieza-sub'>Color: {color_nombre.capitalize()}</div>",
                                     unsafe_allow_html=True,
                                 )
+                        
+                        # Razones
                         with cols[-1]:
                             razones_limpias = [limpiar_razon(x) for x in r.get("razones", [])]
                             st.markdown("**¿Por qué combina?**\n" + "\n".join(f"- {x}" for x in razones_limpias))
