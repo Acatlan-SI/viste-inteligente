@@ -1,11 +1,4 @@
-"""
-Módulo para gestionar el almacenamiento de imágenes en Google Cloud Storage.
-Funciones compatibles con app.py:
-- guardar_prenda_nube
-- obtener_prendas_nube
-- borrar_prenda_nube
-- limpiar_vencidas_nube
-"""
+"""Persistencia de imágenes y metadatos de prendas en Google Cloud Storage."""
 
 import os
 import json
@@ -15,9 +8,6 @@ from pathlib import Path
 from google.cloud import storage
 from google.oauth2 import service_account
 
-# -----------------------------------------------------------------------------
-# Configuración
-# -----------------------------------------------------------------------------
 BUCKET_NAME = os.environ.get("GCP_BUCKET_NAME", "viste-inteligente-bucket")
 LOCAL_CREDENTIALS = Path(__file__).resolve().parent.parent / "credentials.json"
 
@@ -49,9 +39,6 @@ def _get_bucket():
     return _bucket
 
 
-# -----------------------------------------------------------------------------
-# Funciones públicas (nombres esperados por app.py)
-# -----------------------------------------------------------------------------
 def guardar_prenda_nube(user_id: str, nombre_archivo: str, imagen_bytes: bytes, metadata: dict):
     """Guarda una prenda (imagen + metadatos JSON) en Cloud Storage sin caducidad."""
     bucket = _get_bucket()

@@ -2,8 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Solo libjpeg y zlib para Pillow. Ya no necesitamos gcc/g++/build-essential
-# porque quitamos numpy/scipy/pandas del front.
+# Dependencias de sistema requeridas por Pillow.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     zlib1g-dev \

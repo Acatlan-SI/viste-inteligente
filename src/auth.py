@@ -1,9 +1,4 @@
-"""
-AUTENTICACIÓN DE USUARIOS CON FIREBASE (REST API)
-------------------------------------------
-Maneja inicio de sesión, registro (con nombre de usuario) y cierre de sesión.
-Nota: El 2FA nativo de Firebase requiere JS. Aquí usamos verificación de correo como estándar seguro en Python.
-"""
+"""Registro, autenticación y sesión de usuarios mediante Firebase Authentication."""
 
 import os
 import requests
@@ -12,7 +7,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Obtener la API Key del entorno o de secrets.toml
 FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY")
 if not FIREBASE_WEB_API_KEY:
     try:
@@ -52,7 +46,6 @@ def registrar_usuario(email: str, password: str, display_name: str) -> tuple[boo
                 return False, "Este correo ya está registrado."
             return False, f"Error al registrar: {msg}"
         
-        # Registro exitoso. Guardamos en sesión.
         st.session_state["auth_sesion"] = {
             "uid": data["localId"],
             "email": data["email"],
@@ -61,7 +54,6 @@ def registrar_usuario(email: str, password: str, display_name: str) -> tuple[boo
             "refresh_token": data["refreshToken"]
         }
         
-        # NOTA SOBRE 2FA: En Streamlit, forzamos la verificación de correo como capa de seguridad.
         return True, "Cuenta creada exitosamente. ¡Revisa tu correo para verificar tu cuenta!"
         
     except Exception as e:

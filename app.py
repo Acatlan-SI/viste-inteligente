@@ -1,14 +1,7 @@
-"""
-WEB APP DEL RECOMENDADOR DE OUTFITS (Front limpio)
----------------------------------------------------
-Este archivo NO contiene lógica de ML. Toda la inferencia (clasificación
-de prendas, extracción de color, reglas de combinación) vive en un servicio
-separado `ML_SERVICE_URL`.
+"""Interfaz Streamlit para clasificación, recomendaciones y Mi clóset.
 
-Pestañas:
-1. Recomendador : el usuario sube fotos, el servicio ML las clasifica,
-                   y después pide outfits filtrados por ocasión/color.
-2. Mi clóset    : prendas guardadas en la nube.
+La clasificación y generación de outfits se delegan al servicio configurado
+en ML_SERVICE_URL.
 """
 
 import io
@@ -27,15 +20,9 @@ from src.config import (
 from src import gcp_storage
 from dotenv import load_dotenv
 load_dotenv()
-# -----------------------------------------------------------------------------
-# Configuración
-# -----------------------------------------------------------------------------
 MAX_FOTOS_RECOMENDADAS = 30
 ML_SERVICE_URL = os.environ.get("ML_SERVICE_URL", "").rstrip("/")
 
-# -----------------------------------------------------------------------------
-# SVGs (sin cambios)
-# -----------------------------------------------------------------------------
 SVG_PERCHA = """<svg class="svg-icon" width="22" height="22" viewBox="0 0 24 24" fill="none"
 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 <path d="M12 6a2 2 0 1 0-2-2"/><path d="M12 6v2.2"/><path d="M12 8.2 3.5 14.5a1.5 1.5 0 0 0 .9 2.7h15.2a1.5 1.5 0 0 0 .9-2.7L12 8.2z"/>
@@ -81,17 +68,11 @@ stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="r
 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
 </svg>"""
 
-# -----------------------------------------------------------------------------
-# Setup de Streamlit
-# -----------------------------------------------------------------------------
 st.set_page_config(page_title="Recomendador de outfits", page_icon="👕", layout="wide")
 if ESTILO_CSS.exists():
     st.markdown(f"<style>{ESTILO_CSS.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
 def limpiar_razon(texto):
     """Quita valores numéricos entre paréntesis al final de cada razón (ej. (+3), (0.46))."""
     limpio = re.sub(r"\s*\([^)]*\)\s*$", "", str(texto)).strip()
@@ -110,6 +91,7 @@ def crear_miniatura(datos: bytes, lado_max: int = 320) -> bytes:
 
 
 def _ml_disponible() -> bool:
+    """Indica si se configuró la URL del servicio de ML."""
     return bool(ML_SERVICE_URL)
 
 def _get_auth_headers() -> dict:
@@ -117,10 +99,8 @@ def _get_auth_headers() -> dict:
     headers = {"Content-Type": "application/json"}
     
     if sesion and hasattr(sesion, 'id_token'):
-        # Firebase Auth en Streamlit
         headers["Authorization"] = f"Bearer {sesion.id_token}"
     elif sesion and 'id_token' in sesion:
-        # Si guardaste el token en la sesión
         headers["Authorization"] = f"Bearer {sesion['id_token']}"
     
     return headers
@@ -183,9 +163,6 @@ def pedir_recomendaciones(payload: dict) -> dict | None:
     return None
 
 
-# -----------------------------------------------------------------------------
-# Sidebar / auth
-# -----------------------------------------------------------------------------
 sesion = sesion_actual()
 user_id = sesion["uid"] if sesion else None
 
@@ -229,6 +206,7 @@ with st.sidebar:
 
 
 def prendas_guardadas():
+    """Obtiene las prendas de la cuenta actual desde Google Cloud Storage."""
     if not user_id:
         return []
     try:
@@ -238,9 +216,6 @@ def prendas_guardadas():
         return []
 
 
-# -----------------------------------------------------------------------------
-# Hero + tabs
-# -----------------------------------------------------------------------------
 st.markdown(
     f"""
     <div id="inicio" class="hero-closet">
@@ -264,9 +239,6 @@ if not _ml_disponible():
 
 tab_rec, tab_closet = st.tabs(["Recomendador", "Mi clóset"])
 
-# ===========================================================================
-# 1. RECOMENDADOR
-# ===========================================================================
 with tab_rec:
     opciones = ["todas"] + OCASIONES
     ocasion = st.radio(
@@ -341,7 +313,7 @@ with tab_rec:
                 "patron": patron,
                 "mezclilla": mezclilla,
                 "ocasiones": ocas,
-                "color": {"nombre": color},  # el ML service completará los demás campos
+                "color": {"nombre": color},
             })
 
     if prendas:
@@ -387,9 +359,9 @@ with tab_rec:
                     "patron": p["patron"],
                     "mezclilla": p["mezclilla"],
                     "ocasiones": p["ocasiones"],
-                    "color": p["color"],  # Esto ya es un dict {"nombre": "rojo"}
+                    "color": p["color"],
                     "nombre": p.get("nombre", "Prenda temporal"),
-                    "imagen_url": "",  # Vacío porque es una prenda subida temporalmente
+                    "imagen_url": "",
                 }
                 prendas_extra_metadata.append(prenda_meta)
             
@@ -398,7 +370,7 @@ with tab_rec:
                 "ocasion": ocasion,
                 "top": top,
                 "incluir_closet": bool(usar_closet),
-                "prendas_extra": prendas_extra_metadata,  # ✅ Solo metadata, sin bytes
+                "prendas_extra": prendas_extra_metadata,
             }
             
             with st.spinner("Armando combinaciones..."):
@@ -436,12 +408,8 @@ with tab_rec:
                         cols = st.columns(len(r["piezas"]) + 1)
                         for c, p in zip(cols, r["piezas"]):
                             with c:
-                                # ✅ Intentar mostrar imagen en este orden:
-                                # 1. URL firmada de Cloud Storage (prendas del clóset)
-                                # 2. Bytes de imagen en memoria (prendas temporales)
                                 imagen_mostrada = False
                                 
-                                # Opción 1: URL firmada
                                 if p.get("imagen_url"):
                                     try:
                                         st.image(p["imagen_url"], width=175)
@@ -449,10 +417,8 @@ with tab_rec:
                                     except Exception:
                                         pass
                                 
-                                # Opción 2: Buscar en las prendas temporales por nombre
                                 if not imagen_mostrada:
                                     nombre_pieza = p.get("nombre", "")
-                                    # Buscar en las prendas subidas temporalmente
                                     for prenda_subida in prendas:
                                         if prenda_subida["nombre"] == nombre_pieza:
                                             try:
@@ -463,7 +429,6 @@ with tab_rec:
                                                 pass
                                             break
                                 
-                                # Opción 3: Buscar en las prendas guardadas del clóset
                                 if not imagen_mostrada:
                                     for prenda_guardada in guardadas:
                                         if prenda_guardada.get("nombre") == nombre_pieza:
@@ -475,14 +440,12 @@ with tab_rec:
                                                 pass
                                             break
                                 
-                                # Si no se encontró imagen, mostrar placeholder
                                 if not imagen_mostrada:
                                     st.markdown(
                                         "<div style='width:175px;height:175px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#999;font-size:14px;'>Sin imagen</div>",
                                         unsafe_allow_html=True
                                     )
                                 
-                                # Información de la pieza
                                 color_nombre = p['color']['nombre'] if isinstance(p.get('color'), dict) else str(p.get('color', 'Desconocido'))
                                 st.markdown(
                                     f"<div class='pieza-titulo'>{NOMBRE_CLASE.get(p['tipo'], p['tipo'])}</div>"
@@ -490,7 +453,6 @@ with tab_rec:
                                     unsafe_allow_html=True,
                                 )
                         
-                        # Razones
                         with cols[-1]:
                             razones_limpias = [limpiar_razon(x) for x in r.get("razones", [])]
                             st.markdown("**¿Por qué combina?**\n" + "\n".join(f"- {x}" for x in razones_limpias))
@@ -518,7 +480,7 @@ with tab_rec:
     st.markdown("### Preguntas frecuentes")
     faqs = [
         ("¿Tengo que registrarme para usar el recomendador?",
-         "No. Puedes subir tus fotos y generar combinaciones al momento sin iniciar sesión."),
+         "Puedes explorar la interfaz y clasificar fotos sin iniciar sesión. Para generar recomendaciones y guardar prendas, sí debes iniciar sesión."),
         ("¿Qué pasa con mis prendas si inicio sesión?",
          "Se guardan en Mi clóset en la nube para reutilizarlas cuando quieras."),
         ("¿Por qué a veces me muestra menos outfits de los que pedí?",
@@ -530,9 +492,6 @@ with tab_rec:
         with st.expander(pregunta):
             st.write(respuesta)
 
-# ===========================================================================
-# 2. MI CLÓSET
-# ===========================================================================
 with tab_closet:
     if not sesion or not user_id:
         st.info("Inicia sesión en la barra lateral para ver o guardar tu clóset.")

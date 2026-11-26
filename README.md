@@ -1,164 +1,189 @@
-# Recomendador de outfits por ocasión con procesamiento de imágenes
+# Viste Inteligente
 
-Proyecto final de **Sistemas Inteligentes** · UNAM FES Acatlán · MAC · Grupo 1704 · 2027-I
+Aplicación web para clasificar prendas y solicitar recomendaciones de outfits según una ocasión. Este repositorio contiene el **frontend en Streamlit** y las integraciones con servicios externos; la clasificación y la generación de outfits se realizan en un servicio de ML independiente.
 
-Repositorio: https://github.com/MysticMichelle/recomendador-outfits
+La aplicación está desplegada en Google Cloud Run: [viste-inteligente.cloud.run](https://viste-inteligente.cloud.run).
 
-El usuario elige **para qué ocasión se viste** (casual, business casual, formal, deportivo o fiesta) y sube fotos de su ropa. El sistema:
+## Funcionalidades
 
-1. **Filtra** las prendas que sirven para esa ocasión.
-2. **Reconoce el tipo de prenda** con un modelo supervisado y muestra su **% de seguridad**; si baja de 60 %, avisa.
-3. **Obtiene el color** con k-means (no supervisado) y lo nombra con reglas HSV o con un modelo entrenado, el que acierte más.
-4. **Califica cada outfit** del 0 al 10 con reglas de teoría del color + la **colorimetría de la ocasión**, y explica por qué.
+### Recomendador
 
-Incluye un **tablero analítico** con KPIs.
+- Permite elegir entre **cualquier ocasión**, casual, business casual, formal, deportivo y fiesta/noche.
+- Acepta varias imágenes JPG, JPEG, PNG y WEBP en una sola carga. Recomienda subir hasta 30 fotos por tanda; el límite es un aviso, no un bloqueo.
+- Envía cada imagen al servicio ML para detectar tipo de prenda, color, patrón, mezclilla y ocasiones. Los campos se pueden revisar y corregir antes de pedir outfits.
+- Permite incluir las prendas guardadas en **Mi clóset** y elegir cuántos resultados solicitar (de 1 a 15).
+- Muestra los outfits devueltos por la API, su calificación sobre 10, las prendas y las razones de la combinación. Si la API devuelve menos resultados válidos que los solicitados, muestra los disponibles.
+- Las imágenes cargadas se envían a `/classify`. Al pedir recomendaciones, las prendas de la carga actual se envían como metadatos, sin los bytes de imagen.
 
-## Problemática y solución
+**En el comportamiento actual, se requiere iniciar sesión para solicitar recomendaciones y guardar prendas.** Se puede explorar la interfaz y clasificar imágenes sin iniciar sesión.
 
-- **Problemática:** elegir qué ponerse toma tiempo, y es difícil saber qué prendas combinan entre sí y cuáles son adecuadas para cada ocasión (por ejemplo, business casual).
-- **Solución:** una web app que, a partir de fotos del clóset, recomienda los mejores outfits para la ocasión elegida y explica por qué funcionan.
+### Mi clóset
 
-## Arquitectura
+- Permite guardar imágenes y metadatos en Google Cloud Storage asociados a la cuenta.
+- Lista las prendas guardadas, permite quitarlas y usarlas como parte de una recomendación.
+- Las prendas se conservan hasta que el usuario las elimina; el almacenamiento actual no las elimina automáticamente por antigüedad.
 
-```
-fotos ──► 1_etiquetar.py ──► etiquetas/*.csv  (tipo, color, patrón, mezclilla, ocasiones)
-                                   │
-                                   ▼
-                          2_limpieza.py  (homologación regex, duplicados, nulos,
-                                   │       características con k-means)
-                                   ▼
-                          dataset_limpio.csv ──► 3_eda.py ──► reportes/eda/*.png
-                                   │
-                                   ▼
-                          4_modelado.py  (k-means · 6 modelos de tipo · modelo de color · modelo de ocasiones)
-                                   │
-                                   ▼
-                          modelos/modelos.joblib
-                                   │
-                                   ▼
-                          app.py  (Recomendador por ocasión + Tablero de KPIs)
-```
+### Cuenta
 
-## Estructura
+- Crear una cuenta e iniciar sesión con correo y contraseña mediante Firebase Authentication.
+- Cerrar sesión desde la barra lateral.
+- La sesión conserva el identificador de usuario y el token de Firebase para las llamadas autenticadas.
 
-| Archivo / carpeta | Contenido |
+## Recorrido principal de la interfaz
+
+1. Inicia sesión en la barra lateral para habilitar recomendaciones y el guardado en la nube.
+2. En **Recomendador**, selecciona una ocasión y sube fotos.
+3. Revisa las predicciones y ajusta tipo, color, patrón, mezclilla y ocasiones si hace falta.
+4. Opcionalmente, guarda las prendas o incluye las que ya están en Mi clóset.
+5. Selecciona la cantidad de outfits y pulsa **Recomendar outfits**.
+6. Revisa las calificaciones, las imágenes y las razones presentadas. En **Mi clóset**, puedes consultar o eliminar prendas guardadas.
+
+## Funciones del código
+
+### `app.py`
+
+| Función | Utilidad |
 |---|---|
-| `1_etiquetar.py` | App para etiquetar: tipo, color real, patrón, mezclilla y ocasiones |
-| `2_limpieza.py` | Limpieza, homologación, duplicados, características, imputación |
-| `3_eda.py` | EDA univariado, bivariado y multivariado (incluye qué tanto aciertan las reglas de color) |
-| `4_modelado.py` | k-means (codo + silueta), 6 clasificadores de tipo, modelo de color y modelo de ocasiones |
-| `app.py` | Web app: recomendador por ocasión + tablero analítico + Mi clóset |
-| `src/closet.py` | Mi clóset: guardar prendas por usuario (se borran solas a los 30 días) |
-| `.streamlit/config.toml`, `assets/estilo.css` | Tema y estilos visuales de la app |
-| `GUIA_DESARROLLO.md` | Guía para quien continúe el diseño y las funciones |
-| `src/color_kmeans.py` | **k-means implementado desde cero** + reglas HSV para nombrar el color |
-| `src/caracteristicas.py` | Convierte cada foto en 67 características numéricas |
-| `src/reglas.py` | Reglas de teoría del color + colorimetría por ocasión |
-| `src/config.py` | Rutas, clases, colores, patrones y ocasiones |
-| `demo/generar_fotos_demo.py` | Fotos de prueba para verificar que todo corre |
-| `datos/fotos/<Persona>/` | Aquí van las fotos (no se suben a GitHub) |
+| `limpiar_razon(texto)` | Quita del final de una razón valores numéricos entre paréntesis para presentarla en la interfaz. |
+| `crear_miniatura(datos, lado_max)` | Corrige la orientación de la imagen, crea una miniatura JPEG y la cachea para mostrarla con menor costo. |
+| `_ml_disponible()` | Comprueba si se configuró la URL del servicio ML. |
+| `_get_auth_headers()` | Prepara los encabezados JSON y el token de Firebase de la sesión actual. |
+| `clasificar_prenda(datos)` | Envía una imagen a `POST /classify` y procesa la respuesta o muestra el error recibido. |
+| `pedir_recomendaciones(payload)` | Envía los metadatos de la solicitud a `POST /recommend` y procesa la respuesta o muestra el error recibido. |
+| `prendas_guardadas()` | Obtiene las prendas de la cuenta actual desde Cloud Storage y muestra un aviso si no se pueden consultar. |
 
-## Etiquetas (por foto)
+El resto de `app.py` construye la interfaz: autenticación en la barra lateral, pestañas, formulario del recomendador, resultados, preguntas frecuentes y vista de Mi clóset.
 
-| Campo | Valores |
+### `src/auth.py`
+
+| Función | Utilidad |
 |---|---|
-| Tipo | Arriba · Abajo · Completo (vestido, overol) · Calzado · Otro |
-| Color real | negro, blanco, gris, beige, café, azul marino, azul, celeste, turquesa, verde, amarillo, naranja, rojo, vino, rosa, morado, multicolor |
-| Patrón | liso, rayas, cuadros, floral, lunares, animal print, gráfico / logo, otro estampado |
-| Mezclilla | sí / no (es una tela, no un color) |
-| Ocasiones (varias) | Casual / diario · Business casual · Formal / evento · Deportivo · Fiesta / noche |
+| `sesion_actual()` | Recupera la sesión almacenada en el estado de Streamlit. |
+| `registrar_usuario(email, password, display_name)` | Registra una cuenta mediante Firebase Authentication y guarda la sesión resultante. |
+| `iniciar_sesion(email, password)` | Autentica una cuenta mediante Firebase Authentication y guarda la sesión resultante. |
+| `cerrar_sesion()` | Elimina la sesión local y actualiza la aplicación. |
 
-## Instalación
+### `src/gcp_storage.py`
 
-Requiere **Python 3.13** en Windows (con 3.15, Windows bloquea una librería de pandas).
+| Función | Utilidad |
+|---|---|
+| `_get_bucket()` | Inicializa el cliente de Google Cloud Storage y obtiene el bucket configurado. |
+| `guardar_prenda_nube(user_id, nombre_archivo, imagen_bytes, metadata)` | Guarda la imagen y sus metadatos bajo el identificador del usuario. |
+| `obtener_prendas_nube(user_id)` | Recupera los metadatos y las imágenes de las prendas del usuario. |
+| `borrar_prenda_nube(user_id, prenda_id)` | Elimina la imagen y los metadatos de una prenda. |
+| `limpiar_vencidas_nube(user_id)` | Mantiene compatibilidad con el código que la invoca; actualmente no elimina prendas y devuelve `0`. |
 
-```bash
-py install 3.13
-py -3.13 -m pip install -r requirements.txt
+### Configuración y recursos de interfaz
+
+- `src/config.py`: catálogos de tipos de prenda, colores, patrones y ocasiones; nombres de presentación y rutas del CSS.
+- `assets/estilo.css`: estilos y diseño adaptable.
+- `.streamlit/config.toml`: tema visual de Streamlit.
+- `requirements.txt`: dependencias de Python.
+- `Dockerfile`: construcción de la imagen para Cloud Run.
+
+## Integraciones y peticiones a la API
+
+### Servicio ML
+
+La URL base se configura con `ML_SERVICE_URL`. La interfaz quita las barras finales al leerla.
+
+#### Clasificación: `POST {ML_SERVICE_URL}/classify`
+
+- Envía la imagen como `multipart/form-data` en el campo `file`, con nombre `imagen.jpg` y tipo `image/jpeg`.
+- Agrega `Authorization: Bearer <id_token>` si hay una sesión activa.
+- Tiempo de espera del cliente: 15 segundos.
+- La interfaz consume los campos `tipo`, `color`, `ocasiones`, `patron` y `mezclilla` de la respuesta.
+
+#### Recomendaciones: `POST {ML_SERVICE_URL}/recommend`
+
+- Envía JSON con los campos `user_id`, `ocasion` (o `null` para cualquier ocasión), `top`, `incluir_closet` y `prendas_extra`.
+- Cada elemento de `prendas_extra` incluye tipo, patrón, mezclilla, ocasiones, color, nombre e `imagen_url`. Las fotos cargadas en esa sesión se envían como metadatos, no como bytes.
+- Incluye el token de Firebase en `Authorization: Bearer <id_token>`.
+- Tiempo de espera del cliente: 30 segundos.
+- La interfaz espera un objeto con una lista `outfits`. Presenta la `calificacion`, las `piezas` y las `razones` de cada resultado. Para cada pieza puede mostrar `imagen_url` si está disponible.
+
+Si `ML_SERVICE_URL` no está definido, la interfaz avisa que el servicio no está configurado y no puede clasificar ni generar recomendaciones. Este repositorio no incluye el servicio ML.
+
+### Firebase Authentication
+
+`src/auth.py` usa la API REST de Firebase Identity Toolkit:
+
+- `POST https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=...` para registrar una cuenta.
+- `POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=...` para iniciar sesión.
+
+La clave web se lee desde `FIREBASE_WEB_API_KEY` o, si no está definida, desde `st.secrets["firebase"]["web_api_key"]`.
+
+### Google Cloud Storage
+
+Las imágenes y los metadatos se guardan en rutas separadas por usuario dentro del bucket. El nombre del bucket se configura con `GCP_BUCKET_NAME`; si no se define, se usa `viste-inteligente-bucket`.
+
+En local, el módulo usa `credentials.json` en la raíz si existe; si no, usa Application Default Credentials (ADC). En Cloud Run, configura una cuenta de servicio con permisos para acceder al bucket.
+
+## Requisitos
+
+- Python 3.12, igual que la versión base indicada en el `Dockerfile`.
+- Acceso a un servicio ML que implemente `/classify` y `/recommend`.
+- Una clave web de Firebase para autenticación.
+- Para guardar y consultar prendas: acceso de Google Cloud a un bucket de Storage.
+
+## Ejecutar localmente
+
+Los siguientes comandos son para Windows PowerShell, desde la raíz del repositorio.
+
+1. Crea y activa un entorno virtual:
+
+   ```powershell
+   py -3.12 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+   Si PowerShell bloquea la activación del entorno, consulta la política de ejecución de tu equipo o activa el entorno desde una terminal compatible.
+
+2. Instala las dependencias del proyecto en el entorno:
+
+   ```powershell
+   python -m pip install --upgrade pip
+   python -m pip install -r requirements.txt
+   ```
+
+   Esto prepara el entorno local con Streamlit, Requests, Pillow, Firebase Admin, Google Cloud Storage y `python-dotenv`.
+
+3. Crea un archivo `.env` en la raíz del proyecto y configura los valores localmente:
+
+   ```dotenv
+   ML_SERVICE_URL=https://URL-DE-TU-SERVICIO-ML
+   FIREBASE_WEB_API_KEY=TU_CLAVE_WEB_DE_FIREBASE
+   GCP_BUCKET_NAME=TU_BUCKET
+   ```
+
+   Sustituye los valores de ejemplo por los de tus servicios. `GCP_BUCKET_NAME` es opcional si usarás el nombre predeterminado. Para Google Cloud Storage, coloca `credentials.json` de forma privada en la raíz o configura ADC. No incluyas credenciales reales en el repositorio ni en capturas o documentación.
+
+4. Inicia la aplicación:
+
+   ```powershell
+   streamlit run app.py
+   ```
+
+   Abre la URL local que Streamlit muestra en la terminal, normalmente `http://localhost:8501`.
+
+Sin `ML_SERVICE_URL` se puede abrir la interfaz, pero no se podrán clasificar prendas ni obtener recomendaciones. Sin la configuración de Firebase no se podrá iniciar sesión; sin acceso al bucket no se podrá guardar ni consultar Mi clóset.
+
+## Construir y ejecutar con Docker
+
+Desde la raíz del repositorio, construye la imagen:
+
+```powershell
+docker build -t viste-inteligente .
 ```
 
-## Comandos de ejecución (en orden)
+El entorno de ejecución del contenedor necesita las mismas variables de entorno y acceso a Google Cloud. `.env` y `credentials.json` se excluyen del contexto de construcción; no se copian a la imagen. Puedes pasar las variables al ejecutar el contenedor usando un archivo local protegido:
 
-```bash
-py -3.13 -m streamlit run 1_etiquetar.py   # 1. etiquetar
-py -3.13 2_limpieza.py                    # 2. limpieza
-py -3.13 3_eda.py                         # 3. EDA
-py -3.13 4_modelado.py                    # 4. modelos
-py -3.13 -m streamlit run app.py          # 5. web app
+```powershell
+docker run --rm -p 8080:8080 --env-file .env viste-inteligente
 ```
 
-> El repositorio incluye el modelo ya entrenado (`modelos/modelos.joblib`, 10.4 MB comprimido), así que la app se puede abrir directamente.
-> Para reentrenarlo basta con `py -3.13 4_modelado.py`: **no necesita las fotos**, usa `datos/dataset_limpio.csv`.
+En ese caso configura el acceso a Cloud Storage con ADC para contenedores o el mecanismo de secretos de tu entorno, no agregando credenciales a la imagen. La aplicación queda disponible en `http://localhost:8080`.
 
-Para probar sin fotos reales: `py -3.13 demo/generar_fotos_demo.py` (y `--borrar` para quitarlas).
+## Protección de secretos
 
-## Modelado
-
-**No supervisado**
-- *k-means desde cero* (`src/color_kmeans.py`): agrupa los píxeles de cada foto; el grupo más grande que no es fondo es el color de la prenda.
-- *k-means de scikit-learn* sobre todas las fotos: se elige *k* con el método del codo y el coeficiente de silueta.
-
-**Supervisado**
-- **Tipo de prenda** (5 clases): se comparan KNN, regresión logística, árbol de decisión, Random Forest, SVM y red neuronal (MLP) con accuracy, precisión, recall y F1 macro, más validación cruzada de 5 particiones. Se usa `class_weight="balanced"` por el desbalance de clases. El mejor modelo se elige por F1 de validación cruzada y da el **% de seguridad**.
-- **Color:** se compara la accuracy de las reglas HSV contra un Random Forest entrenado con el color real etiquetado; la app usa el mejor.
-- **Ocasiones:** un clasificador binario por ocasión (una prenda puede servir para varias); se comparan Random Forest y regresión logística; para cada ocasión se ajusta el umbral de decisión que maximiza F0.5 (prioriza la precisión, porque la ocasión se usa como filtro) y se elige el modelo con mejor F0.5 promedio.
-
-## Resultados (1 043 fotos)
-
-| Paso | Resultado |
-|---|---|
-| Limpieza | 1 175 registros leídos → 128 sin etiqueta válida/descartados, 4 duplicados → **1 043 fotos**, 0 nulos |
-| Tipos | superior 588 · inferior 239 · completo 116 · calzado 68 · otro 32 |
-| Prendas neutras | 71.8 % |
-| k-means (todas las fotos) | mejor *k* = 3, silueta 0.099: los grupos **no** corresponden a los tipos de prenda |
-| Tipo de prenda | **Random Forest**: accuracy 0.732, F1 macro 0.628 (validación cruzada 0.630 ± 0.075) |
-| Color | reglas HSV 0.512 → **Random Forest 0.607** |
-| Ocasiones | **Random Forest** con umbral por ocasión: precisión promedio 0.673, recall 0.353 (casual: precisión 0.80 / recall 0.74 · deportivo: 0.82 / 0.12 · fiesta: 0.77 / 0.42) |
-
-| Modelo de tipo | Accuracy | F1 macro | F1 validación cruzada |
-|---|---|---|---|
-| Random Forest (seleccionado) | 0.732 | 0.628 | **0.630 ± 0.075** |
-| SVM (RBF) | 0.742 | 0.638 | 0.617 ± 0.063 |
-| Red neuronal (MLP) | 0.727 | 0.604 | 0.579 ± 0.068 |
-| KNN (k = 5) | 0.679 | 0.548 | 0.525 ± 0.064 |
-| Regresión logística | 0.665 | 0.533 | 0.501 ± 0.058 |
-| Árbol de decisión | 0.569 | 0.526 | 0.424 ± 0.039 |
-
-Las gráficas están en `reportes/eda/` y `reportes/modelado/`.
-
-## Reglas de color
-
-| Regla | Puntos |
-|---|---|
-| Neutro (negro, blanco, gris, beige, café, azul marino o mezclilla) + cualquier color | +3 |
-| Análogos (≤ 45° en la rueda de color) | +3 |
-| Complementarios (150°–180°) | +3 |
-| Monocromático | +2 |
-| Triada (105°–135°) | +1 |
-| Sin relación | −1 |
-| Dos colores muy fuertes sin armonía | −2 |
-| Contraste claro/oscuro entre arriba y abajo (≥ 0.35) | +1 |
-| Arriba y abajo con casi el mismo brillo (< 0.1) | −1 |
-| Dos estampados juntos | −3 |
-| Estampado + prenda lisa neutra | +1 |
-| Calzado neutro | +2 |
-
-**Colorimetría por ocasión** (se suma después del filtro):
-
-| Ocasión | Suma | Resta |
-|---|---|---|
-| Business casual | casi todo en neutros (+2) | colores muy intensos (−2), logos o animal print (−2) |
-| Formal / evento | base en neutros oscuros (+2) | colores muy intensos (−2), estampados que no sean rayas o cuadros (−2) |
-| Deportivo | un color vivo (+1) | — |
-| Fiesta / noche | una pieza llamativa o negro/vino (+2) | todo neutro (−1) |
-
-## Integrantes
-
-- Deciga Torres Melanie
-- Domínguez Lira Estefani Michalle
-- Escobar Sánchez Leonardo
-- Heredia Tamayo Oliver de Yahve
-- Hernández Peña Angel Adrian
-- Moctezuma Isidro Michelle
-
-Profesora: Mirian Ángeles Uribe
+El archivo `.env` se mantiene **privado** porque contiene la URL del servicio y claves usadas para acceder a APIs. Está excluido del control de versiones; también se excluye del contexto de Docker para evitar que termine dentro de la imagen. No publiques su contenido ni subas claves, tokens o `credentials.json` al repositorio. En GCP, usa la configuración de secretos y permisos de la cuenta de servicio de Cloud Run.

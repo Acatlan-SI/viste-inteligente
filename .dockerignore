@@ -32,3 +32,5 @@ tmp/
 
 # Streamlit caché local
 .streamlit/secrets.toml
+.env
+.env.*

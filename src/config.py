@@ -6,7 +6,6 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 
-# ---------------------------------------------------------------- tipo de prenda
 CLASES = ["superior", "inferior", "completo", "calzado", "otro"]
 NOMBRE_CLASE = {
     "superior": "👕 Arriba",
@@ -16,14 +15,11 @@ NOMBRE_CLASE = {
     "otro": "👜 Otro",
 }
 
-# ---------------------------------------------------------------- color
 COLORES = ["negro", "blanco", "gris", "beige", "café", "azul marino", "azul", "celeste",
            "turquesa", "verde", "amarillo", "naranja", "rojo", "vino", "rosa", "morado", "multicolor"]
 
-# ---------------------------------------------------------------- patrón
 PATRONES = ["liso", "rayas", "cuadros", "floral", "lunares", "animal print", "gráfico / logo", "otro estampado"]
 
-# ---------------------------------------------------------------- ocasiones
 OCASIONES = ["casual", "business_casual", "formal", "deportivo", "fiesta"]
 NOMBRE_OCASION = {
     "casual": "Casual / diario",
@@ -33,6 +29,5 @@ NOMBRE_OCASION = {
     "fiesta": "Fiesta / noche",
 }
 
-# ---------------------------------------------------------------- Mi clóset
 DIAS_GUARDADO = 30
 ESTILO_CSS = RAIZ / "assets" / "estilo.css"
